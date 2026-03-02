@@ -5,7 +5,7 @@ from Code.utilities import *
 
 parser = argparse.ArgumentParser(description="Run CRC_SSL_N script with configurable parameters.")
 parser.add_argument("--plot", type=int, default=0, help="Enable or disable plotting (0 or 1)")
-parser.add_argument("--model_type", type=str, default="SRP_PHAT", help="Model type (e.g., SRP_PHAT)")
+parser.add_argument("--model_type", type=str, default="srp_dnn", help="Model type (e.g., SRP_PHAT)")
 parser.add_argument("--num_iterations", type=int, default=100, help="Number of iterations")
 parser.add_argument("--seed", type=int, default=1234567890, help="Random seed")
 parser.add_argument("--snr", type=int, default=15, help="Signal-to-noise ratio")
@@ -30,7 +30,11 @@ Kmax = args.Kmax
 lambda_list_ext = np.linspace(0., 1., args.lambda_steps) # Lambda
 significance_level = np.array(args.significance_levels)
 
-filename = f'./data/{model_type}/Reverb_{reverb}_ms_SNR_{snr}_dB/speakers_{speakers}.npz'
+# filename = f'data/{model_type}/Reverb_{reverb}_ms_SNR_{snr}_dB/speakers_{speakers}.npz'
+# filename = 'data/npz_output/Reverb_400_ms_SNR_15_dB/speakers_2.npz'
+# filename = 'data/npz_output_mobile/Reverb_400_ms_SNR_15_dB/speakers_2.npz'
+filename = 'data/npz_output_mobile/Reverb_400_ms_SNR_15_dB/speakers_2.npz'
+
 
 print(f'Current setup: {model_type} with {speakers} speakers')
 
@@ -41,7 +45,10 @@ all_likelihood_maps = data['all_likelihood_maps']
 
 room_obj = data['rir_obj'].item()
 room = type('Room', (object,), room_obj)()
-
+temp = room.xl
+room.xl = room.yl
+room.yl = temp
+        
 total_dataset_size = speaker_pos.shape[0]
 
 splits = generate_random_splits(total_samples=total_dataset_size,
@@ -73,7 +80,7 @@ for iter in range(num_iterations):
                                       estimated_positions=all_estimated_positions[test_index, :speakers, ...],
                                       likelihood_maps=all_likelihood_maps[test_index, :speakers, ...],
                                       significance_level=significance_level,
-                                      test_plot=False)
+                                      test_plot=bool(plot))
 
     coverage_array.append(coverage)
     area_array.append(area/37/73*100)  # normalize by sphere area
@@ -90,3 +97,26 @@ print_results(coverage_array=coverage_array,
               area_array=area_array,
               significance_level=significance_level,
               area_unit='% of grid area')
+
+from tabulate import tabulate as _tabulate
+import os as _os
+_sig = np.atleast_1d(np.asarray(significance_level, dtype=float))
+_headers = ["Speaker"]
+for _alpha in _sig:
+    _target = 1.0 - _alpha
+    _headers += [f"{_target:.2f} Coverage", f"{_target:.2f} Area [% of grid area]"]
+_rows = []
+for _i in range(coverage_array.shape[0]):
+    _row_vals = []
+    for _j in range(coverage_array.shape[1]):
+        _row_vals.append(f"{coverage_array[_i, _j]:.3f}")
+        _row_vals.append(f"{area_array[_i, _j]:.3f}")
+    _rows.append([f"Speaker {_i+1}"] + _row_vals)
+_table_str = _tabulate(_rows, headers=_headers, tablefmt="fancy_grid")
+
+_log_path = f"results_{model_type}_reverb{reverb}_snr{snr}_speakers{speakers}.txt"
+with open(_log_path, "w") as _f:
+    _f.write(f"Model: {model_type} | Reverb: {reverb} ms | SNR: {snr} dB | Speakers: {speakers}\n")
+    _f.write(f"Iterations: {num_iterations} | Seed: {seed}\n\n")
+    _f.write(_table_str + "\n")
+print(f"Table saved to {_log_path}")

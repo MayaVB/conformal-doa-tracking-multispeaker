@@ -9,9 +9,9 @@ from tqdm import tqdm
 from scipy.spatial.distance import cdist
 
 from Code.plots import plot_roi_neighbours
-from utilities import create_save_directory
-
-from utilities import normalize
+# from utilities import create_save_directory
+from Code.utilities import create_save_directory, normalize
+# from utilities import normalize
 
 class CoverageSet:
     def __init__(self, true_position, estimated_positions, likelihood_maps, lambda_list, room, path_, plot_function):

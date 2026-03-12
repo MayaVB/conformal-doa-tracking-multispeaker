@@ -6,7 +6,7 @@ from matplotlib.patheffects import withStroke
 from matplotlib.ticker import MultipleLocator, FuncFormatter
 
 
-def plot_roi_neighbours(likelihood_map, mask, true_position, estimated_position, room, title='', figure_path='', ax=None, segment_color='red', linestyle='solid', speaker_index= None):
+def plot_roi_neighbours(likelihood_map, mask, true_position, estimated_position, room, title='', figure_path='', ax=None, segment_color='red', linestyle='solid', speaker_index=None, burst_position=None):
     ax_empty = ax
 
     y_label = getattr(room, 'x_label', 'X-Coordinate')
@@ -47,6 +47,14 @@ def plot_roi_neighbours(likelihood_map, mask, true_position, estimated_position,
         label='True' if not plot_roi_neighbours.legend_added else None
     )
 
+    if burst_position is not None:
+        ax.scatter(
+            burst_position[1],
+            burst_position[0],
+            marker='x', color='cyan', s=600, linewidths=5, zorder=10,
+            label='Burst' if not plot_roi_neighbours.legend_added else None
+        )
+
     if speaker_index:
         ax.text(
             estimated_position[1] + 0.15,
@@ -72,7 +80,7 @@ def plot_roi_neighbours(likelihood_map, mask, true_position, estimated_position,
         ax.set_xlim(0, room.LL[1])
         ax.set_ylim(0, room.LL[0])
 
-    heatmap = ax.imshow(likelihood_map, extent=extent, interpolation='bilinear')
+    heatmap = ax.imshow(likelihood_map, extent=extent, interpolation='bilinear', origin='upper')
 
     if ax_empty is None:
         fig.colorbar(heatmap, ax=ax)

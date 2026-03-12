@@ -126,7 +126,7 @@ class CoverageSet:
 
         self._mis_cov_rate = 1. - self.coverage_per_lambda / self.calib_sets
 
-    def test(self, test_sets:int, estimated_positions, true_positions, likelihood_maps, significance_level: np.array, test_plot: bool = False):
+    def test(self, test_sets:int, estimated_positions, true_positions, likelihood_maps, significance_level: np.array, test_plot: bool = False, burst_metadata=None):
 
         colors = ['Magenta', 'Magenta', 'Magenta', '']
         lineStyles = ['solid'] * self._speakers
@@ -167,6 +167,15 @@ class CoverageSet:
                     map_ = np.flipud(map_to_plot) if getattr(self.room, 'type', 'cartesian') == 'sphere' else map_to_plot
 
                     if test_plot:
+                        burst_pos = None
+                        if burst_metadata is not None:
+                            bm = burst_metadata[set_index]
+                            if bm.get('burst_active') and 'burst_grid_idx' in bm:
+                                nele, nazi = likelihood_map.shape
+                                ele_grid = np.linspace(0, np.pi, nele)
+                                azi_grid = np.linspace(-np.pi, np.pi, nazi)
+                                ele_idx, azi_idx = bm['burst_grid_idx']
+                                burst_pos = np.array([ele_grid[ele_idx], azi_grid[azi_idx]])
                         plot_roi_neighbours(ax=ax,
                                             likelihood_map=map_,
                                             mask=coverage_set,
@@ -176,7 +185,8 @@ class CoverageSet:
                                             segment_color=colors[estimated_speaker],
                                             linestyle = lineStyles[estimated_speaker],
                                             figure_path=current_path,
-                                            speaker_index=estimated_speaker+1)
+                                            speaker_index=estimated_speaker+1,
+                                            burst_position=burst_pos)
 
                 if test_plot:
                     figure_path = os.path.join(current_path, f'coverage_{int((1-err)*100)}.png')

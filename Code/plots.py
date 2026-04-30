@@ -48,12 +48,13 @@ def plot_roi_neighbours(likelihood_map, mask, true_position, estimated_position,
     )
 
     if burst_position is not None:
-        ax.scatter(
-            burst_position[1],
-            burst_position[0],
-            marker='x', color='cyan', s=600, linewidths=5, zorder=10,
-            label='Burst' if not plot_roi_neighbours.legend_added else None
-        )
+        positions = burst_position if isinstance(burst_position, list) else [burst_position]
+        for i, bp in enumerate(positions):
+            ax.scatter(
+                bp[1], bp[0],
+                marker='x', color='cyan', s=600, linewidths=5, zorder=10,
+                label='Burst' if (not plot_roi_neighbours.legend_added and i == 0) else None
+            )
 
     if speaker_index:
         ax.text(

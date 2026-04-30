@@ -134,6 +134,10 @@ class CoverageSet:
         n = significance_level.shape[0]
         self._test_coverage = [[[] for _ in range(n)] for _ in range(self._speakers)]
         self._test_area = [[[] for _ in range(n)] for _ in range(self._speakers)]
+        _burst_area     = [[[] for _ in range(n)] for _ in range(self._speakers)]
+        _noburst_area   = [[[] for _ in range(n)] for _ in range(self._speakers)]
+        _burst_cov      = [[[] for _ in range(n)] for _ in range(self._speakers)]
+        _noburst_cov    = [[[] for _ in range(n)] for _ in range(self._speakers)]
 
         for err_ind, err in enumerate(significance_level):
 
@@ -150,6 +154,9 @@ class CoverageSet:
                     fig, ax = plt.subplots(constrained_layout=True)
                     current_path = create_save_directory(os.path.join(self.path + '_test', f'set_{set_index}'))
 
+                is_burst = (burst_metadata is not None
+                            and burst_metadata[set_index].get('burst_active', False))
+
                 true_speaker_order, estimated_speaker_order = self._match_estimated_to_source(true_positions[set_index], estimated_positions[set_index])
 
                 for estimated_speaker, true_speaker in zip(estimated_speaker_order, true_speaker_order):
@@ -160,8 +167,16 @@ class CoverageSet:
                     estimated_source_grid = self._project_onto_grid(estimated_positions[set_index, estimated_speaker])
                     true_source_grid = self._project_onto_grid(true_positions[set_index, true_speaker])
                     coverage_set = self.neighbours_coverage_set(likelihood_map, lambda_[estimated_speaker], estimated_position=estimated_source_grid)
-                    self._test_coverage[estimated_speaker][err_ind].append(coverage_set[true_source_grid[0], true_source_grid[1]])
-                    self._test_area[estimated_speaker][err_ind].append(np.sum(coverage_set) * self.room.resolution)
+                    covered = bool(coverage_set[true_source_grid[0], true_source_grid[1]])
+                    area_val = np.sum(coverage_set) * self.room.resolution
+                    self._test_coverage[estimated_speaker][err_ind].append(covered)
+                    self._test_area[estimated_speaker][err_ind].append(area_val)
+                    if is_burst:
+                        _burst_area[estimated_speaker][err_ind].append(area_val)
+                        _burst_cov[estimated_speaker][err_ind].append(covered)
+                    else:
+                        _noburst_area[estimated_speaker][err_ind].append(area_val)
+                        _noburst_cov[estimated_speaker][err_ind].append(covered)
 
                     map_to_plot = likelihood_maps[set_index, estimated_speaker_order[0], ...]
                     map_ = np.flipud(map_to_plot) if getattr(self.room, 'type', 'cartesian') == 'sphere' else map_to_plot
@@ -174,8 +189,11 @@ class CoverageSet:
                                 nele, nazi = likelihood_map.shape
                                 ele_grid = np.linspace(0, np.pi, nele)
                                 azi_grid = np.linspace(-np.pi, np.pi, nazi)
-                                ele_idx, azi_idx = bm['burst_grid_idx']
-                                burst_pos = np.array([ele_grid[ele_idx], azi_grid[azi_idx]])
+                                burst_pos = [
+                                    np.array([ele_grid[ei], azi_grid[ai]])
+                                    for ei, ai in bm['burst_grid_idx']
+                                    if ei >= 0 and ai >= 0
+                                ]
                         plot_roi_neighbours(ax=ax,
                                             likelihood_map=map_,
                                             mask=coverage_set,
@@ -194,7 +212,23 @@ class CoverageSet:
                     plt.close()
                     plot_roi_neighbours.legend_added = False
 
-        return np.mean(np.array(self._test_coverage), axis=2), np.mean(np.array(self._test_area), axis=2)
+        def _arr(lst):
+            return np.array([[np.mean(lst[s][e]) if lst[s][e] else np.nan
+                              for e in range(n)] for s in range(self._speakers)])
+
+        burst_stats = None
+        if burst_metadata is not None:
+            n_burst = sum(1 for bm in burst_metadata if bm.get('burst_active', False))
+            burst_stats = {
+                'burst_area':     _arr(_burst_area),
+                'noburst_area':   _arr(_noburst_area),
+                'burst_coverage': _arr(_burst_cov),
+                'noburst_coverage': _arr(_noburst_cov),
+                'n_burst':   n_burst,
+                'n_noburst': test_sets - n_burst,
+            }
+
+        return np.mean(np.array(self._test_coverage), axis=2), np.mean(np.array(self._test_area), axis=2), burst_stats
 
     @staticmethod
     def get_patch(center_point, grid_shape, size=1):
